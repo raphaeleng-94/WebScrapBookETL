@@ -54,11 +54,7 @@ WebScrapBookETL/
 3. Configure as credenciais do banco de dados
 4. Execute o pipeline: `python main.py`
 
-## Contribuição
-
-Contribuições são bem-vindas! Por favor, sinta-se à vontade para submeter pull requests.
 
 ## Licença
 
-Este projeto está sob a licença MIT. # WebScrapBookETL
-# WebScrapBookETL
+Este projeto está sob a licença MIT. 
