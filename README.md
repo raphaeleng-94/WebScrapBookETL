@@ -26,7 +26,7 @@ O pipeline consiste em três etapas principais:
 - Pandas para manipulação de dados
 - PostgreSQL para armazenamento
 - SQLAlchemy para ORM
-
+- Logfire para registro dos Logs
 ## Requisitos
 
 - Python 3.x

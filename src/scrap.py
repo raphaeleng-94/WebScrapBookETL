@@ -166,12 +166,12 @@ def salvar_dados_postgres(dados):
             timestamp = dado['timestamp']
             
             # Verificando o comprimento das strings
-            if len(titulo) > 50:
-                logger.warning(f"Título excedendo limite de 50 caracteres: {titulo}")
-            if len(classificacao) > 50:
-                logger.warning(f"Classificação excedendo limite de 50 caracteres: {classificacao}")
-            if len(categoria) > 50:
-                logger.warning(f"Categoria excedendo limite de 50 caracteres: {categoria}")
+            if len(titulo) > 250:
+                logger.warning(f"Título excedendo limite de 250 caracteres: {titulo}")
+            if len(classificacao) > 250:
+                logger.warning(f"Classificação excedendo limite de 250 caracteres: {classificacao}")
+            if len(categoria) > 250:
+                logger.warning(f"Categoria excedendo limite de 250 caracteres: {categoria}")
             
             query = """
                 INSERT INTO estoque_livros (titulo, classificacao, categoria, preco, estoque, timestamp)
