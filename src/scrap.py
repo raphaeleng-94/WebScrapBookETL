@@ -2,9 +2,8 @@ import requests
 from bs4 import BeautifulSoup
 import os
 import time
-import requests
-import logfire
 import logging
+import psycopg2
 from datetime import datetime
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -13,6 +12,7 @@ from logging import basicConfig, getLogger
 
 #----------------------------------------------
 # Configuração do Logfire
+import logfire
 logfire.configure()
 basicConfig(handlers=[logfire.LogfireLoggingHandler()])
 logger = getLogger(__name__)
@@ -23,7 +23,6 @@ logfire.instrument_sqlalchemy()
 #----------------------------------------------
 # Configuração do logging
 basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
 
 # Importar a base e livros do banco.py
 from banco import Base, Livro
@@ -61,10 +60,6 @@ headers = {
     (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0"
 }
 
-site = requests.get(url, headers=headers)
-
-soup = BeautifulSoup(site.content, "html.parser")
-
 # Dicionário para converter a classificação em texto para número de estrelas
 estrelas_dict = {
     'One': '1 estrela',
@@ -74,10 +69,11 @@ estrelas_dict = {
     'Five': '5 estrelas'
 }
 
+# Lista para armazenar os dados dos livros
 livros = []
 
 def buscar_categoria(link):
-    """ Acessa o link do livro e busca a categoria """
+    """Acessa o link do livro e busca a categoria"""
     try:
         site = requests.get(link, headers=headers)
         soup = BeautifulSoup(site.content, "html.parser")
@@ -87,36 +83,38 @@ def buscar_categoria(link):
         return "Categoria desconhecida"
 
 def buscar_livros(soup):
-    """ Busca os livros na página atual """
+    """Busca os livros na página atual"""
     for livro in soup.find_all('article', {'class': 'product_pod'}):
         # Título
         titulo = livro.find('h3').find('a')['title']
-        
+
         # Classificação em estrelas
         estrelas = livro.find('p', {'class': 'star-rating'})
         if estrelas:
-            # Pega a segunda palavra da classe (ex: "star-rating Three" → Three)
             classificacao = estrelas['class'][1]
             classificacao = estrelas_dict.get(classificacao, "Sem avaliação")
         else:
             classificacao = "Sem avaliação"
-        
-        #Buscar preço
-        preco = soup.find('p', {'class': 'price_color'}).text.strip()
 
-        #Buscar estoque
-        estoque = soup.find('p', {'class': 'instock availability'}).text.strip()
+        # Preço
+        preco = livro.find('p', {'class': 'price_color'}).text.strip()
 
-        #Link para o livro
+        # Estoque
+        estoque = livro.find('p', {'class': 'instock availability'}).text.strip()
+
+        # Link para o livro
         link = base_url + livro.find('h3').find('a')['href']
 
-        #Buscar categoria
-        categoria = buscar_categoria(link)  
+        # Buscar categoria
+        categoria = buscar_categoria(link)
 
-        # Adiciona à lista
+        # Adiciona os dados à lista de livros
         livros.append((titulo, classificacao, categoria, preco, estoque))
+
     return livros
+
 def proximapagina(soup):
+    """Busca a próxima página de livros"""
     next_page = soup.find('li', {'class':'next'})
     if next_page:
         prox = next_page.find('a', href=True)
@@ -124,102 +122,96 @@ def proximapagina(soup):
             return base_url + prox['href']
     return None
 
-while url:
-    site = requests.get(url, headers=headers)
-    soup = BeautifulSoup(site.content, "html.parser")
-    # Busca os livros na página atual
-    dados = buscar_livros(soup)
-    # Busca a próxima página
-    url = proximapagina(soup)
-
 def transform_dados_livros(dados):
-   resultados = []
-   for dado in dados:
-    titulo = dado[0]
-    classificacao = dado[1]
-    categoria = dado[2]
-    preco = dado[3].replace('£', '')  # ← Agora preco é uma string
-    estoque = dado[4]
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    
-    dados_transformados = {
-        "titulo": titulo,
-        "classificacao": classificacao,
-        "categoria": categoria,
-        "preco": float(preco),  # Converte para número
-        "estoque": estoque,
-        "timestamp": timestamp
-    }
-    
-    resultados.append(dados_transformados)
+    """Transforma os dados de livros para o formato correto"""
+    resultados = []
+    for dado in dados:
+        titulo = dado[0]
+        classificacao = dado[1]
+        categoria = dado[2]
+        preco = dado[3].replace('£', '').replace(',', '.')  # Remove o símbolo de libra e trata a vírgula
+        estoque = dado[4]
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        dados_transformados = {
+            "titulo": titulo,
+            "classificacao": classificacao,
+            "categoria": categoria,
+            "preco": float(preco),  # Converte para número
+            "estoque": estoque,
+            "timestamp": timestamp
+        }
+        resultados.append(dados_transformados)
 
     return resultados
-   
-   """titulo = dados[0]
-    classificacao = dados[1]
-    categoria = dados[2]
-    # Remove o símbolo de moeda e converte para float
-    preco = float(dados[3].replace('£', ''))
-    estoque = dados[4]
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    dados_transformados = {
-        "titulo": titulo,
-        "classificacao": classificacao,
-        "categoria": categoria,
-        "preco": preco,
-        "estoque": estoque,
-        "timestamp": timestamp
-    }
-
-    return dados_transformados"""
 
 def salvar_dados_postgres(dados):
     """Salva os dados no banco de dados PostgreSQL"""
-    session = SessionLocal()
-    novo_registro = Livro(**dados)
-    session.add(novo_registro)
-    session.commit()
-    session.close()
-    logger.info(f"[{dados['timestamp']}] Dados salvos com sucesso no PostgreSQL!")
+    try:
+        conn = psycopg2.connect(
+            dbname=POSTGRES_DB,
+            user=POSTGRES_USER,
+            password=POSTGRES_PASSWORD,
+            host=POSTGRES_HOST,
+            port=POSTGRES_PORT
+        )
+        cur = conn.cursor()
+
+        for dado in dados:
+            titulo = dado['titulo']
+            classificacao = dado['classificacao']
+            categoria = dado['categoria']
+            preco = dado['preco']
+            estoque = dado['estoque']
+            timestamp = dado['timestamp']
+            
+            # Verificando o comprimento das strings
+            if len(titulo) > 50:
+                logger.warning(f"Título excedendo limite de 50 caracteres: {titulo}")
+            if len(classificacao) > 50:
+                logger.warning(f"Classificação excedendo limite de 50 caracteres: {classificacao}")
+            if len(categoria) > 50:
+                logger.warning(f"Categoria excedendo limite de 50 caracteres: {categoria}")
+            
+            query = """
+                INSERT INTO estoque_livros (titulo, classificacao, categoria, preco, estoque, timestamp)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (titulo, categoria) DO NOTHING;
+            """
+            cur.execute(query, (titulo, classificacao, categoria, preco, estoque, timestamp))
+        
+        conn.commit()  # Faz o commit após todos os inserts
+        logger.info(f"{len(dados)} registros salvos com sucesso!")
+
+        cur.close()
+        conn.close()
+
+    except Exception as e:
+        logger.error(f"Erro ao salvar dados no banco: {e}")
 
 if __name__ == "__main__":
     criar_tabela()
     logger.info("Iniciando o pipeline com atualização a cada 15 segundos...(CTRL+C para interromper)")
-    while True:
+    
+    while url:
         try:
+            site = requests.get(url, headers=headers)
+            soup = BeautifulSoup(site.content, "html.parser")
+            
             # Extração dos dados    
-            dados = buscar_livros(soup) 
+            dados = buscar_livros(soup)
             if dados:
                 dados_transformados = transform_dados_livros(dados)
-                for dado in dados_transformados:
-                    logger.info(f"Dados Tratados: {dado}")
-                    salvar_dados_postgres(dado)
-            
-            """if dados:
-                dados_transformados = transform_dados_livros(dados)
-                logger.info("Dados Tratados:", dados_transformados)
-                salvar_dados_postgres(dados_transformados)"""
-
-            #Atualiza a URL para a próxima página
+                salvar_dados_postgres(dados_transformados)
+        
+            # Atualiza a URL para a próxima página
             url = proximapagina(soup)
 
             time.sleep(15)
+
         except KeyboardInterrupt:
             logger.info("\nPipeline interrompido pelo usuário")
             break
         except Exception as e:
             logger.info(f"\nErro ao processar dados: {e}")
             time.sleep(15)
-
-"""print(f"Total de livros encontrados: {len(livros)}\n")
-for i, (titulo, classificacao, categoria, preco, estoque) in enumerate(livros, 1):
-    print(f"{i}. {titulo} - {classificacao} - {categoria} - {preco} - {estoque}")"""
-
-
-
-
-
-
-
-
