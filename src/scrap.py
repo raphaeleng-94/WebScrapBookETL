@@ -134,23 +134,24 @@ while url:
 
 def transform_dados_livros(dados):
    resultados = []
-    for dado in dados:
-        titulo = dado[0]
-        classificacao = dado[1]
-        categoria = dado[2]
-        preco = dado[3].replace('£', '')  # ← Agora preco é uma string
-        estoque = dado[4]
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        dados_transformados = {
-            "titulo": titulo,
-            "classificacao": classificacao,
-            "categoria": categoria,
-            "preco": float(preco),  # Converte para número
-            "estoque": estoque,
-            "timestamp": timestamp
-        }
-        resultados.append(dados_transformados)
+   for dado in dados:
+    titulo = dado[0]
+    classificacao = dado[1]
+    categoria = dado[2]
+    preco = dado[3].replace('£', '')  # ← Agora preco é uma string
+    estoque = dado[4]
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    dados_transformados = {
+        "titulo": titulo,
+        "classificacao": classificacao,
+        "categoria": categoria,
+        "preco": float(preco),  # Converte para número
+        "estoque": estoque,
+        "timestamp": timestamp
+    }
+    
+    resultados.append(dados_transformados)
 
     return resultados
    
@@ -187,8 +188,8 @@ if __name__ == "__main__":
     logger.info("Iniciando o pipeline com atualização a cada 15 segundos...(CTRL+C para interromper)")
     while True:
         try:
-            # Extração dos dados
-            dados = buscar_livros(soup)
+            # Extração dos dados    
+            dados = buscar_livros(soup) 
             if dados:
                 dados_transformados = transform_dados_livros(dados)
                 for dado in dados_transformados:
