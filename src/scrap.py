@@ -133,12 +133,32 @@ while url:
     url = proximapagina(soup)
 
 def transform_dados_livros(dados):
-    titulo = dados[0]
+   resultados = []
+    for dado in dados:
+        titulo = dado[0]
+        classificacao = dado[1]
+        categoria = dado[2]
+        preco = dado[3].replace('£', '')  # ← Agora preco é uma string
+        estoque = dado[4]
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        dados_transformados = {
+            "titulo": titulo,
+            "classificacao": classificacao,
+            "categoria": categoria,
+            "preco": float(preco),  # Converte para número
+            "estoque": estoque,
+            "timestamp": timestamp
+        }
+        resultados.append(dados_transformados)
+
+    return resultados
+   
+   """titulo = dados[0]
     classificacao = dados[1]
     categoria = dados[2]
     # Remove o símbolo de moeda e converte para float
     preco = float(dados[3].replace('£', ''))
-    
     estoque = dados[4]
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -151,7 +171,7 @@ def transform_dados_livros(dados):
         "timestamp": timestamp
     }
 
-    return dados_transformados
+    return dados_transformados"""
 
 def salvar_dados_postgres(dados):
     """Salva os dados no banco de dados PostgreSQL"""
@@ -171,8 +191,14 @@ if __name__ == "__main__":
             dados = buscar_livros(soup)
             if dados:
                 dados_transformados = transform_dados_livros(dados)
+                for dado in dados_transformados:
+                    logger.info(f"Dados Tratados: {dado}")
+                    salvar_dados_postgres(dado)
+            
+            """if dados:
+                dados_transformados = transform_dados_livros(dados)
                 logger.info("Dados Tratados:", dados_transformados)
-                salvar_dados_postgres(dados_transformados)
+                salvar_dados_postgres(dados_transformados)"""
 
             #Atualiza a URL para a próxima página
             url = proximapagina(soup)
